@@ -1,0 +1,31 @@
+{
+    "network_sizes": [
+        300,
+        600,
+        1200,
+        2400,
+        4800,
+        9600
+    ],
+    "seeds": [
+        5000,
+        5001,
+        5002
+    ],
+    "timing_repeats": 2,
+    "communities": 3,
+    "expected_internal_degree": 18,
+    "expected_external_degree": 3,
+    "fixed_batch_size": 10,
+    "proportional_batch_fraction": 0.01,
+    "mechanisms": [
+        "community_focused",
+        "bridge",
+        "existing_edge"
+    ],
+    "regimes": [
+        "fixed",
+        "proportional"
+    ],
+    "algorithm_sha256": "d2b8db245c95f48c389213cff7113348e81acfdef4b698e1085c7b4d880f4ff9"
+}

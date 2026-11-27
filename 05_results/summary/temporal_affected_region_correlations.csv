@@ -1,0 +1,17 @@
+dataset,protocol,metric,windows,spearman_rho
+school_temporal,common_history,node_visit_ratio_vs_static,40,0.9703081768730658
+school_temporal,common_history,candidate_ratio_vs_static,40,0.9852244487596381
+school_temporal,common_history,scan_ratio_vs_static,40,0.5870819463281104
+school_temporal,common_history,speedup_vs_static,40,0.23218725106456906
+school_temporal,independent,node_visit_ratio_vs_static,40,0.9461044149439107
+school_temporal,independent,candidate_ratio_vs_static,40,0.9679628511047368
+school_temporal,independent,scan_ratio_vs_static,40,0.5027440316990003
+school_temporal,independent,speedup_vs_static,40,0.3319105027339173
+email_temporal,common_history,node_visit_ratio_vs_static,75,0.5624466571834993
+email_temporal,common_history,candidate_ratio_vs_static,75,0.6540825035561878
+email_temporal,common_history,scan_ratio_vs_static,75,0.40358463726884775
+email_temporal,common_history,speedup_vs_static,75,0.13320056899004265
+email_temporal,independent,node_visit_ratio_vs_static,75,0.9213655761024181
+email_temporal,independent,candidate_ratio_vs_static,75,0.9250924608819345
+email_temporal,independent,scan_ratio_vs_static,75,0.8111806543385491
+email_temporal,independent,speedup_vs_static,75,0.019687055476529162

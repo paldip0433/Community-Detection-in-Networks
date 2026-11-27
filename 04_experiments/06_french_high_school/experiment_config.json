@@ -1,0 +1,18 @@
+{
+    "dataset": "French High School",
+    "interval_seconds": 3600,
+    "seeds": [
+        4000,
+        4001,
+        4002
+    ],
+    "timing_repeats": 2,
+    "graph_representation": "cumulative_undirected_unweighted",
+    "protocols": [
+        "common_history",
+        "independent"
+    ],
+    "unchanged_windows_excluded": true,
+    "reference_labels_used": true,
+    "algorithm_sha256": "d2b8db245c95f48c389213cff7113348e81acfdef4b698e1085c7b4d880f4ff9"
+}

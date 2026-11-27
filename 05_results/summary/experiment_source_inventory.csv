@@ -1,0 +1,9 @@
+experiment,filename,rows,columns
+Karate controlled arrivals,karate_arrival_raw.csv,1080,60
+Email controlled arrivals,email_arrival_raw.csv,540,60
+School temporal,school_temporal_raw.csv,720,65
+Email temporal,email_temporal_raw.csv,1350,65
+Hybrid temporal,combined_hybrid_comparison.csv,3450,69
+Sparse SBM scalability,scalability_raw.csv,324,59
+Degree-matched arrivals,email_degree_matched_raw.csv,360,61
+Dense SBM ARI parameter sweep,dense_sbm_ari_raw.csv,80000,9

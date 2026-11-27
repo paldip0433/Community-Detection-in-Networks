@@ -1,0 +1,3 @@
+dataset,observed_nodes,total_interactions,unique_timestamps,first_timestamp,last_timestamp,duration_seconds,duration_hours,duration_days,missing_values,duplicate_records,self_interactions
+French High School,327,188508,7375,1385982020,1386345580,363560,100.9888888888889,4.207870370370371,0,0,0
+Email-Eu-core-temporal,986,332334,207880,0,69459254,69459254,19294.237222222222,803.9265509259259,0,4998,0

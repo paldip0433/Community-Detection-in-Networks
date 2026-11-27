@@ -1,0 +1,23 @@
+{
+    "dataset": "Email-Eu-core",
+    "batch_sizes": [
+        1,
+        5,
+        10,
+        25,
+        50,
+        100
+    ],
+    "mechanisms": [
+        "random",
+        "bridge",
+        "community_focused"
+    ],
+    "realizations": 10,
+    "timing_repeats": 3,
+    "pool_fraction": 0.4,
+    "graph_type": "undirected_unweighted",
+    "isolated_nodes_retained": true,
+    "arrival_design": "controlled_node_restoration",
+    "algorithm_sha256": "d2b8db245c95f48c389213cff7113348e81acfdef4b698e1085c7b4d880f4ff9"
+}

@@ -1,0 +1,35 @@
+node,reference_community,degree,participation_coefficient,neighbor_communities
+30,Officer,4,0.5,2
+9,Officer,2,0.5,2
+2,Mr. Hi,10,0.48,2
+8,Mr. Hi,5,0.48,2
+19,Mr. Hi,3,0.4444444444444444,2
+28,Officer,3,0.4444444444444444,2
+27,Officer,4,0.375,2
+13,Mr. Hi,5,0.31999999999999984,2
+33,Officer,17,0.2906574394463668,2
+32,Officer,12,0.2777777777777777,2
+31,Officer,6,0.2777777777777777,2
+1,Mr. Hi,9,0.19753086419753085,2
+0,Mr. Hi,16,0.1171875,2
+3,Mr. Hi,6,0.0,1
+23,Officer,5,0.0,1
+5,Mr. Hi,4,0.0,1
+6,Mr. Hi,4,0.0,1
+7,Mr. Hi,4,0.0,1
+29,Officer,4,0.0,1
+4,Mr. Hi,3,0.0,1
+10,Mr. Hi,3,0.0,1
+24,Officer,3,0.0,1
+25,Officer,3,0.0,1
+12,Mr. Hi,2,0.0,1
+14,Officer,2,0.0,1
+15,Officer,2,0.0,1
+16,Mr. Hi,2,0.0,1
+17,Mr. Hi,2,0.0,1
+18,Officer,2,0.0,1
+20,Officer,2,0.0,1
+21,Mr. Hi,2,0.0,1
+22,Officer,2,0.0,1
+26,Officer,2,0.0,1
+11,Mr. Hi,1,0.0,1

@@ -1,0 +1,4 @@
+strategy,initial_modularity,final_modularity,communities,initial_active_fraction,visited_fraction,activated_fraction,stop_reason,preprocessing_scans,local_neighbor_scans,activation_scans,node_visits,candidate_evaluations,accepted_moves,singleton_creations,passes
+Static,-0.008689514939429837,0.54677375187036,3,1.0,1.0,1.0,no_improving_moves,1626,8130,0,605,3161,163,0,5
+Global warm-start,0.5466784372640774,0.54677375187036,3,1.0,1.0,1.0,no_improving_moves,1626,3252,0,242,753,1,0,2
+Adaptive,0.5466784372640774,0.54677375187036,3,0.09090909090909091,0.09090909090909091,0.09090909090909091,no_improving_moves,1626,269,6,18,65,1,0,2

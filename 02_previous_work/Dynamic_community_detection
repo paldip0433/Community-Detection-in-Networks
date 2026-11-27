@@ -1,0 +1,1379 @@
+import networkx as nx
+import numpy as np
+import random
+import time
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.metrics import adjusted_rand_score
+
+
+
+# 1. MODULARITY
+
+
+def calculate_modularity(G, communities):
+    
+
+    m = G.size(weight="weight")
+
+    if m == 0:
+        return 0.0
+
+    degree = dict(G.degree(weight="weight"))
+
+    # Total degree of each community
+    community_degree = {}
+
+    for node, comm in communities.items():
+        community_degree[comm] = (
+            community_degree.get(comm, 0.0)
+            + degree[node]
+        )
+
+    # Internal edge weight of each community
+    internal_weight = {}
+
+    for u, v, data in G.edges(data=True):
+        w = data.get("weight", 1.0)
+
+        if communities[u] == communities[v]:
+            internal_weight[communities[u]] = (
+                internal_weight.get(communities[u], 0.0)
+                + w
+            )
+
+    Q = 0.0
+
+    for comm in community_degree:
+
+        L_c = internal_weight.get(comm, 0.0)
+        d_c = community_degree[comm]
+
+        Q += (L_c / m) - (d_c / (2.0 * m)) ** 2
+
+    return Q
+
+
+
+# 2. FAST LOCAL MOVING
+
+
+def local_moving(
+    G,
+    initial_partition=None,
+    max_passes=50,
+    tolerance=1e-12,
+    affected_nodes=None,
+    seed=42
+):
+    
+
+    rng = random.Random(seed)
+
+    nodes = list(G.nodes())
+
+    
+    # Initial partition
+    
+
+    if initial_partition is None:
+
+        community = {
+            node: i
+            for i, node in enumerate(nodes)
+        }
+
+    else:
+
+        community = dict(initial_partition)
+
+        # Give new labels to nodes not already present
+        next_label = (
+            max(community.values()) + 1
+            if len(community) > 0
+            else 0
+        )
+
+        for node in nodes:
+
+            if node not in community:
+
+                community[node] = next_label
+                next_label += 1
+
+    
+    # Degree
+    
+
+    degree = dict(G.degree(weight="weight"))
+
+    m = G.size(weight="weight")
+
+    if m == 0:
+        return community
+
+    
+    # Total degree of each community
+    
+
+    community_degree = {}
+
+    for node in nodes:
+
+        c = community[node]
+
+        community_degree[c] = (
+            community_degree.get(c, 0.0)
+            + degree[node]
+        )
+
+    
+    # Nodes that need to be considered
+    
+
+    if affected_nodes is None:
+
+        active_nodes = set(nodes)
+
+    else:
+
+        active_nodes = set(affected_nodes)
+
+    
+    # Local moving
+    
+
+    for iteration in range(max_passes):
+
+        if not active_nodes:
+            break
+
+        moved = False
+
+        # Random order avoids systematic ordering effects
+        current_nodes = list(active_nodes)
+        rng.shuffle(current_nodes)
+
+        next_active = set()
+
+        for node in current_nodes:
+
+            if node not in G:
+                continue
+
+            old_comm = community[node]
+
+            k_i = degree[node]
+
+            if k_i == 0:
+                continue
+
+            
+            # Temporarily remove node from its community
+            
+
+            community_degree[old_comm] -= k_i
+
+            
+            # Calculate edge weight from node to each neighboring
+            # community
+            
+
+            neighbor_community_weight = {}
+
+            for neighbor, data in G[node].items():
+
+                weight = data.get("weight", 1.0)
+
+                neighbor_comm = community[neighbor]
+
+                neighbor_community_weight[neighbor_comm] = (
+                    neighbor_community_weight.get(
+                        neighbor_comm, 0.0
+                    )
+                    + weight
+                )
+
+            
+
+            best_comm = old_comm
+            best_gain = 0.0
+
+            for candidate_comm, k_i_c in (
+                neighbor_community_weight.items()
+            ):
+
+                sigma_c = community_degree.get(
+                    candidate_comm,
+                    0.0
+                )
+
+                gain = (
+                    k_i_c / m
+                    -
+                    (k_i * sigma_c) / (2.0 * m * m)
+                )
+
+                if gain > best_gain + tolerance:
+
+                    best_gain = gain
+                    best_comm = candidate_comm
+
+        
+            # Put node into best community
+            
+
+            community_degree[best_comm] = (
+                community_degree.get(best_comm, 0.0)
+                + k_i
+            )
+
+            if best_comm != old_comm:
+
+                community[node] = best_comm
+                moved = True
+
+            
+
+                for neighbor in G[node]:
+
+                    next_active.add(neighbor)
+
+            else:
+                pass
+
+        
+        # Continue only around regions affected by moves
+        
+
+        active_nodes = next_active
+
+        if not moved:
+            break
+
+    return community
+
+
+
+# 3. AGGREGATE GRAPH
+
+
+def aggregate_graph(G, partition):
+    
+
+    H = nx.Graph()
+
+    communities = set(partition.values())
+
+    H.add_nodes_from(communities)
+
+    for u, v, data in G.edges(data=True):
+
+        w = data.get("weight", 1.0)
+
+        cu = partition[u]
+        cv = partition[v]
+
+        if H.has_edge(cu, cv):
+
+            H[cu][cv]["weight"] += w
+
+        else:
+
+            H.add_edge(
+                cu,
+                cv,
+                weight=w
+            )
+
+    return H
+
+
+
+# 4. FULL LOUVAIN
+
+
+def louvain_algorithm(
+    G,
+    initial_partition=None,
+    max_levels=10,
+    seed=42
+):
+
+
+    rng = random.Random(seed)
+
+    
+    # Original nodes
+    
+
+    original_nodes = list(G.nodes())
+
+    
+    # Current graph
+    
+
+    current_graph = G.copy()
+
+    # Mapping from current graph nodes to original nodes
+    original_membership = {
+        node: {node}
+        for node in current_graph.nodes()
+    }
+
+    # Final partition
+    final_partition = {}
+
+    previous_modularity = -np.inf
+
+    for level in range(max_levels):
+
+        
+        # Local optimization
+        
+
+        partition = local_moving(
+            current_graph,
+            initial_partition=initial_partition
+            if level == 0
+            else None,
+            max_passes=50,
+            seed=seed + level
+        )
+
+        
+        # Modularity
+        
+
+        Q = calculate_modularity(
+            current_graph,
+            partition
+        )
+
+        
+        # Translate current communities back to original nodes
+        
+
+        for current_node, comm in partition.items():
+
+            for original_node in original_membership[current_node]:
+
+                final_partition[original_node] = comm
+
+        
+        # Check improvement
+        
+
+        if Q <= previous_modularity + 1e-10:
+
+            break
+
+        previous_modularity = Q
+
+        
+        # If every node is already its own stable community,
+        # there may be nothing useful to aggregate.
+        
+
+        number_of_communities = len(
+            set(partition.values())
+        )
+
+        if number_of_communities == len(
+            current_graph.nodes()
+        ):
+
+            break
+
+        
+        # Aggregate
+        
+
+        new_graph = aggregate_graph(
+            current_graph,
+            partition
+        )
+
+        
+        # Update membership
+        
+
+        new_membership = {}
+
+        for old_node, new_comm in partition.items():
+
+            if new_comm not in new_membership:
+
+                new_membership[new_comm] = set()
+
+            new_membership[new_comm].update(
+                original_membership[old_node]
+            )
+
+        current_graph = new_graph
+
+        original_membership = new_membership
+
+        # We start fresh on the aggregated graph
+        initial_partition = None
+
+    
+    # Relabel communities consecutively
+    
+
+    labels = {}
+    next_label = 0
+
+    clean_partition = {}
+
+    for node in original_nodes:
+
+        old_label = final_partition[node]
+
+        if old_label not in labels:
+
+            labels[old_label] = next_label
+            next_label += 1
+
+        clean_partition[node] = labels[old_label]
+
+    return clean_partition
+
+
+
+# 5. GENERATE INITIAL SBM
+
+
+def generate_initial_sbm(
+    community_sizes,
+    p_in,
+    p_out,
+    seed=42
+):
+    
+
+    rng = np.random.default_rng(seed)
+
+    n = sum(community_sizes)
+
+    true_partition = {}
+
+    node = 0
+
+    for c, size in enumerate(community_sizes):
+
+        for _ in range(size):
+
+            true_partition[node] = c
+            node += 1
+
+    G = nx.Graph()
+
+    G.add_nodes_from(range(n))
+
+    for i in range(n):
+
+        for j in range(i + 1, n):
+
+            if (
+                true_partition[i]
+                ==
+                true_partition[j]
+            ):
+
+                probability = p_in
+
+            else:
+
+                probability = p_out
+
+            if rng.random() < probability:
+
+                G.add_edge(i, j, weight=1.0)
+
+    return G, true_partition
+
+
+
+# 6. ADD NEW NODES TO SBM
+
+
+def add_new_nodes(
+    G,
+    old_partition,
+    number_of_new_nodes,
+    p_in,
+    p_out,
+    scenario="normal",
+    seed=42
+):
+    
+
+    rng = np.random.default_rng(seed)
+
+    G_new = G.copy()
+
+    new_partition = dict(old_partition)
+
+    old_nodes = list(G.nodes())
+
+    communities = sorted(
+        set(old_partition.values())
+    )
+
+    number_of_communities = len(communities)
+
+    start_node = max(old_nodes) + 1
+
+    new_nodes = list(
+        range(
+            start_node,
+            start_node + number_of_new_nodes
+        )
+    )
+
+    G_new.add_nodes_from(new_nodes)
+
+    
+    # Assign true community labels to new nodes
+
+
+    for index, node in enumerate(new_nodes):
+
+        if scenario == "normal":
+
+            # Distribute new nodes approximately equally
+            true_comm = communities[
+                index % number_of_communities
+            ]
+
+        elif scenario == "bridge":
+
+            # Alternate between two communities
+            true_comm = communities[
+                index % min(2, number_of_communities)
+            ]
+
+        elif scenario == "ambiguous":
+
+            # Give a nominal community label.
+            # Actual connections will be ambiguous.
+            true_comm = communities[
+                index % number_of_communities
+            ]
+
+        else:
+
+            raise ValueError(
+                "Unknown scenario."
+            )
+
+        new_partition[node] = true_comm
+
+    
+    # Connect new nodes to old nodes
+
+
+    for node in new_nodes:
+
+        true_comm = new_partition[node]
+
+        for old_node in old_nodes:
+
+            old_comm = old_partition[old_node]
+
+            
+            # Normal SBM attachment
+            
+
+            if scenario == "normal":
+
+                if old_comm == true_comm:
+
+                    probability = p_in
+
+                else:
+
+                    probability = p_out
+
+            
+            # Bridge scenario
+            #
+            # New nodes connect strongly to community 0 and 1.
+            
+
+            elif scenario == "bridge":
+
+                if old_comm in communities[:2]:
+
+                    probability = p_in
+
+                else:
+
+                    probability = p_out
+
+            
+            # Ambiguous scenario
+            #
+            # New node has similar probability of connecting to
+            # two communities.
+            
+
+            elif scenario == "ambiguous":
+
+                if old_comm in communities[:2]:
+
+                    probability = (
+                        p_in + p_out
+                    ) / 2.0
+
+                else:
+
+                    probability = p_out
+
+            if rng.random() < probability:
+
+                G_new.add_edge(
+                    node,
+                    old_node,
+                    weight=1.0
+                )
+
+    
+    # Also add edges among new nodes
+    
+
+    for i in range(len(new_nodes)):
+
+        for j in range(i + 1, len(new_nodes)):
+
+            u = new_nodes[i]
+            v = new_nodes[j]
+
+            if (
+                new_partition[u]
+                ==
+                new_partition[v]
+            ):
+
+                probability = p_in
+
+            else:
+
+                probability = p_out
+
+            if rng.random() < probability:
+
+                G_new.add_edge(
+                    u,
+                    v,
+                    weight=1.0
+                )
+
+    return (
+        G_new,
+        new_partition,
+        new_nodes
+    )
+
+
+
+# 7. INCREMENTAL LOUVAIN
+
+
+def incremental_louvain(
+    G_old,
+    partition_old,
+    G_new,
+    new_nodes,
+    seed=42
+):
+    
+
+    partition = dict(partition_old)
+
+    
+    # Give new nodes unique communities
+    
+
+    next_label = (
+        max(partition.values()) + 1
+        if partition
+        else 0
+    )
+
+    for node in new_nodes:
+
+        partition[node] = next_label
+        next_label += 1
+
+    
+    # Affected region
+    #
+    # New nodes + their neighbors.
+
+
+    affected = set(new_nodes)
+
+    for node in new_nodes:
+
+        affected.update(
+            G_new.neighbors(node)
+        )
+
+    
+    # Local moving on affected region.
+    #
+    # We allow the affected region to expand whenever a node
+    # changes community.
+    
+
+    partition = local_moving(
+        G_new,
+        initial_partition=partition,
+        max_passes=50,
+        affected_nodes=affected,
+        seed=seed
+    )
+
+    return partition
+
+
+
+# 8. PERTURBATION RATIO
+
+
+def perturbation_ratio(
+    old_partition,
+    new_partition,
+    old_nodes
+):
+    
+
+    old_labels = [
+        old_partition[node]
+        for node in old_nodes
+    ]
+
+    new_labels = [
+        new_partition[node]
+        for node in old_nodes
+    ]
+
+    
+    # ARI between old and new partitions is label-invariant.
+    #
+    # But for the actual number of changed nodes, we need a
+    # label matching.
+    
+
+    old_to_new = {}
+
+    for old_label in set(old_labels):
+
+        indices = [
+            i
+            for i, x in enumerate(old_labels)
+            if x == old_label
+        ]
+
+        candidate_labels = [
+            new_labels[i]
+            for i in indices
+        ]
+
+        if candidate_labels:
+
+            values, counts = np.unique(
+                candidate_labels,
+                return_counts=True
+            )
+
+            best = values[
+                np.argmax(counts)
+            ]
+
+            old_to_new[old_label] = best
+
+    changed = 0
+
+    for i, node in enumerate(old_nodes):
+
+        predicted = old_to_new.get(
+            old_partition[node],
+            None
+        )
+
+        if predicted != new_partition[node]:
+
+            changed += 1
+
+    return changed / len(old_nodes)
+
+
+
+# 9. RUN ONE EXPERIMENT
+
+
+def run_one_experiment(
+    new_node_fraction,
+    community_sizes=[100, 100, 100],
+    p_in=0.30,
+    p_out=0.05,
+    scenario="normal",
+    seed=42
+):
+    
+
+    
+    # Initial graph
+    
+
+    G_old, true_old = generate_initial_sbm(
+        community_sizes,
+        p_in,
+        p_out,
+        seed=seed
+    )
+
+    old_nodes = list(G_old.nodes())
+
+    n_old = len(old_nodes)
+
+    number_of_new_nodes = max(
+        1,
+        int(
+            new_node_fraction * n_old
+        )
+    )
+
+
+    # Initial community detection
+    
+
+    start = time.perf_counter()
+
+    partition_old = louvain_algorithm(
+        G_old,
+        seed=seed
+    )
+
+    initial_runtime = (
+        time.perf_counter() - start
+    )
+
+    
+    # Add new nodes
+    
+
+    (
+        G_new,
+        true_new,
+        new_nodes
+    ) = add_new_nodes(
+        G_old,
+        true_old,
+        number_of_new_nodes,
+        p_in,
+        p_out,
+        scenario=scenario,
+        seed=seed + 1000
+    )
+
+    
+    # METHOD 1: STATIC LOUVAIN
+    
+
+    start = time.perf_counter()
+
+    static_partition = louvain_algorithm(
+        G_new,
+        seed=seed + 2000
+    )
+
+    static_runtime = (
+        time.perf_counter() - start
+    )
+
+    static_Q = calculate_modularity(
+        G_new,
+        static_partition
+    )
+
+    static_ari = adjusted_rand_score(
+        list(true_new.values()),
+        [
+            static_partition[node]
+            for node in true_new
+        ]
+    )
+
+    
+    # METHOD 2: INCREMENTAL LOUVAIN
+    
+
+    start = time.perf_counter()
+
+    incremental_partition = incremental_louvain(
+        G_old,
+        partition_old,
+        G_new,
+        new_nodes,
+        seed=seed + 3000
+    )
+
+    incremental_runtime = (
+        time.perf_counter() - start
+    )
+
+    incremental_Q = calculate_modularity(
+        G_new,
+        incremental_partition
+    )
+
+    incremental_ari = adjusted_rand_score(
+        list(true_new.values()),
+        [
+            incremental_partition[node]
+            for node in true_new
+        ]
+    )
+
+    
+    # COMMUNITY PERTURBATION
+
+    rho = perturbation_ratio(
+        partition_old,
+        incremental_partition,
+        old_nodes
+    )
+
+    
+    # AGREEMENT WITH FULL LOUVAIN
+    
+
+    agreement = adjusted_rand_score(
+        [
+            static_partition[node]
+            for node in G_new.nodes()
+        ],
+        [
+            incremental_partition[node]
+            for node in G_new.nodes()
+        ]
+    )
+
+    
+    # SPEEDUP
+    
+
+    if incremental_runtime > 0:
+
+        speedup = (
+            static_runtime
+            /
+            incremental_runtime
+        )
+
+    else:
+
+        speedup = np.inf
+
+    return {
+        "new_node_fraction": new_node_fraction,
+        "new_nodes": number_of_new_nodes,
+
+        "static_runtime": static_runtime,
+        "incremental_runtime": incremental_runtime,
+
+        "speedup": speedup,
+
+        "static_Q": static_Q,
+        "incremental_Q": incremental_Q,
+
+        "static_ARI": static_ari,
+        "incremental_ARI": incremental_ari,
+
+        "perturbation_ratio": rho,
+
+        "agreement_static_incremental": agreement,
+
+        "initial_runtime": initial_runtime
+    }
+
+
+
+# 10. MAIN EXPERIMENT
+
+
+def run_experiment():
+
+    
+    # SBM parameters
+    
+
+    community_sizes = [
+        100,
+        100,
+        100
+    ]
+
+    p_in = 0.30
+    p_out = 0.05
+
+    
+
+    new_node_fractions = [
+        0.05,
+        0.10,
+        0.20,
+        0.30,
+        0.50,
+        0.75,
+        1.00
+    ]
+
+    
+
+    number_of_realizations = 10
+
+    all_results = []
+
+    print("\n==============================================")
+    print("DYNAMIC COMMUNITY DETECTION EXPERIMENT")
+    print("==============================================")
+
+    print(
+        f"Communities      : {community_sizes}"
+    )
+
+    print(
+        f"p_in             : {p_in}"
+    )
+
+    print(
+        f"p_out            : {p_out}"
+    )
+
+    print(
+        f"Realizations     : {number_of_realizations}"
+    )
+
+    print(
+        f"Scenarios        : normal"
+    )
+
+    print("==============================================\n")
+
+    
+    # Run experiment
+    
+
+    for fraction in new_node_fractions:
+
+        print(
+            f"\nNew-node fraction = {fraction:.2f}"
+        )
+
+        for realization in range(
+            number_of_realizations
+        ):
+
+            seed = (
+                10000
+                +
+                realization
+                +
+                int(fraction * 1000)
+            )
+
+            result = run_one_experiment(
+                new_node_fraction=fraction,
+                community_sizes=community_sizes,
+                p_in=p_in,
+                p_out=p_out,
+                scenario="normal",
+                seed=seed
+            )
+
+            all_results.append(result)
+
+            print(
+                f"  Run {realization + 1:02d}: "
+                f"rho={result['perturbation_ratio']:.4f}, "
+                f"ARI={result['incremental_ARI']:.4f}, "
+                f"speedup={result['speedup']:.2f}x"
+            )
+
+    
+    # Convert to DataFrame
+    
+
+    df = pd.DataFrame(all_results)
+
+    
+    # Save raw results
+
+
+    df.to_csv(
+        "dynamic_louvain_raw_results.csv",
+        index=False
+    )
+
+    
+    # Aggregate results
+    
+
+    summary = (
+        df
+        .groupby("new_node_fraction")
+        .agg(
+            new_nodes_mean=(
+                "new_nodes",
+                "mean"
+            ),
+
+            perturbation_mean=(
+                "perturbation_ratio",
+                "mean"
+            ),
+
+            perturbation_std=(
+                "perturbation_ratio",
+                "std"
+            ),
+
+            static_ARI_mean=(
+                "static_ARI",
+                "mean"
+            ),
+
+            incremental_ARI_mean=(
+                "incremental_ARI",
+                "mean"
+            ),
+
+            static_Q_mean=(
+                "static_Q",
+                "mean"
+            ),
+
+            incremental_Q_mean=(
+                "incremental_Q",
+                "mean"
+            ),
+
+            agreement_mean=(
+                "agreement_static_incremental",
+                "mean"
+            ),
+
+            static_time_mean=(
+                "static_runtime",
+                "mean"
+            ),
+
+            incremental_time_mean=(
+                "incremental_runtime",
+                "mean"
+            ),
+
+            speedup_mean=(
+                "speedup",
+                "mean"
+            )
+        )
+        .reset_index()
+    )
+
+    print("\n\n==============================================")
+    print("FINAL RESULTS")
+    print("==============================================\n")
+
+    print(
+        summary.to_string(
+            index=False,
+            float_format=lambda x: f"{x:.4f}"
+        )
+    )
+
+    summary.to_csv(
+        "dynamic_louvain_summary.csv",
+        index=False
+    )
+
+    
+    # PLOT 1:
+    # NEW NODE FRACTION VS PERTURBATION
+    
+
+    plt.figure(figsize=(8, 5))
+
+    plt.errorbar(
+        summary["new_node_fraction"],
+        summary["perturbation_mean"],
+        yerr=summary["perturbation_std"],
+        marker="o",
+        capsize=4
+    )
+
+    plt.xlabel(
+        "Fraction of New Nodes"
+    )
+
+    plt.ylabel(
+        "Perturbation Ratio"
+    )
+
+    plt.title(
+        "Effect of New-Node Arrivals on Existing Communities"
+    )
+
+    plt.grid(alpha=0.3)
+
+    plt.tight_layout()
+
+    plt.savefig(
+        "perturbation_vs_new_nodes.png",
+        dpi=300
+    )
+
+    plt.show()
+
+    
+    # PLOT 2:
+    # NEW NODE FRACTION VS ARI
+    
+
+    plt.figure(figsize=(8, 5))
+
+    plt.plot(
+        summary["new_node_fraction"],
+        summary["static_ARI_mean"],
+        marker="o",
+        label="Static Louvain"
+    )
+
+    plt.plot(
+        summary["new_node_fraction"],
+        summary["incremental_ARI_mean"],
+        marker="s",
+        label="Incremental Louvain"
+    )
+
+    plt.xlabel(
+        "Fraction of New Nodes"
+    )
+
+    plt.ylabel(
+        "ARI"
+    )
+
+    plt.title(
+        "Community Detection Accuracy Under Node Arrivals"
+    )
+
+    plt.legend()
+
+    plt.grid(alpha=0.3)
+
+    plt.tight_layout()
+
+    plt.savefig(
+        "ari_vs_new_nodes.png",
+        dpi=300
+    )
+
+    plt.show()
+
+    
+    # PLOT 3:
+    # SPEEDUP
+    
+
+    plt.figure(figsize=(8, 5))
+
+    plt.plot(
+        summary["new_node_fraction"],
+        summary["speedup_mean"],
+        marker="o"
+    )
+
+    plt.axhline(
+        1.0,
+        linestyle="--",
+        linewidth=1
+    )
+
+    plt.xlabel(
+        "Fraction of New Nodes"
+    )
+
+    plt.ylabel(
+        "Static Runtime / Incremental Runtime"
+    )
+
+    plt.title(
+        "Computational Speedup of Incremental Louvain"
+    )
+
+    plt.grid(alpha=0.3)
+
+    plt.tight_layout()
+
+    plt.savefig(
+        "speedup_vs_new_nodes.png",
+        dpi=300
+    )
+
+    plt.show()
+
+    
+    # PLOT 4:
+    # AGREEMENT WITH STATIC LOUVAIN
+    
+
+    plt.figure(figsize=(8, 5))
+
+    plt.plot(
+        summary["new_node_fraction"],
+        summary["agreement_mean"],
+        marker="o"
+    )
+
+    plt.xlabel(
+        "Fraction of New Nodes"
+    )
+
+    plt.ylabel(
+        "ARI: Incremental vs Static"
+    )
+
+    plt.title(
+        "Agreement Between Incremental and Full Louvain"
+    )
+
+    plt.ylim(0, 1.05)
+
+    plt.grid(alpha=0.3)
+
+    plt.tight_layout()
+
+    plt.savefig(
+        "incremental_vs_static.png",
+        dpi=300
+    )
+
+    plt.show()
+
+    return df, summary
+
+
+
+# 11. RUN
+
+
+if __name__ == "__main__":
+
+    df, summary = run_experiment()

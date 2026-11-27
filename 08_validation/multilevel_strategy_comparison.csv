@@ -1,0 +1,4 @@
+strategy,initial_modularity,final_modularity,communities,levels,initial_active_fraction,visited_fraction,activated_fraction,stop_reason,preprocessing_scans,local_neighbor_scans,activation_scans,aggregation_edge_scans,coarse_activation_scans,node_visits,candidate_evaluations,accepted_moves,singleton_creations,passes,ARI_vs_static
+Static,-0.008689514939429837,0.54677375187036,3,2,1.0,1.0,1.0,no_further_contraction,1635,8136,0,813,0,608,3170,163,0,6,1.0
+Global warm-start,0.5466784372640774,0.54677375187036,3,2,1.0,1.0,1.0,no_further_contraction,1635,3258,0,813,0,245,762,1,0,3,1.0
+Adaptive,0.5466784372640774,0.54677375187036,3,2,0.09090909090909091,1.0,1.0,no_further_contraction,1635,275,6,813,9,21,74,1,0,3,1.0

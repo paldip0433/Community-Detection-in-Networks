@@ -1,0 +1,13 @@
+dataset,protocol,strategy,evaluated_partitions,disconnected_partitions,disconnected_partition_fraction,total_disconnected_communities,mean_disconnected_node_fraction,maximum_disconnected_node_fraction
+school_temporal,common_history,adaptive,120,0,0.0,0,0.0,0.0
+school_temporal,common_history,static,120,0,0.0,0,0.0,0.0
+school_temporal,common_history,warm,120,0,0.0,0,0.0,0.0
+school_temporal,independent,adaptive,120,0,0.0,0,0.0,0.0
+school_temporal,independent,static,120,0,0.0,0,0.0,0.0
+school_temporal,independent,warm,120,0,0.0,0,0.0,0.0
+email_temporal,common_history,adaptive,225,5,0.022222222222222223,5,0.0015610253202227578,0.1506707946336429
+email_temporal,common_history,static,225,0,0.0,0,0.0,0.0
+email_temporal,common_history,warm,225,4,0.017777777777777778,4,0.0012446231186420474,0.1506707946336429
+email_temporal,independent,adaptive,225,26,0.11555555555555555,26,0.0061582168294442435,0.0660569105691056
+email_temporal,independent,static,225,0,0.0,0,0.0,0.0
+email_temporal,independent,warm,225,3,0.013333333333333334,3,0.0018945865299984873,0.2445582586427656

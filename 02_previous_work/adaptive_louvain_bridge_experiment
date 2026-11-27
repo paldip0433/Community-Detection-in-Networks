@@ -1,0 +1,391 @@
+from __future__ import annotations
+import time, random
+from collections import defaultdict
+import numpy as np
+import pandas as pd
+import networkx as nx
+import matplotlib.pyplot as plt
+from sklearn.metrics import adjusted_rand_score
+from scipy.optimize import linear_sum_assignment
+
+
+def modularity(G, partition, weight='weight'):
+    m = G.size(weight=weight)
+    if m <= 0:
+        return 0.0
+    degree = dict(G.degree(weight=weight))
+    tot = defaultdict(float)
+    internal = defaultdict(float)
+    for v, c in partition.items():
+        tot[c] += degree[v]
+    for u, v, data in G.edges(data=True):
+        if partition[u] == partition[v]:
+            internal[partition[u]] += data.get(weight, 1.0)
+    return sum(internal[c] / m - (tot[c] / (2*m))**2 for c in tot)
+
+
+def relabel(partition):
+    mapping = {}
+    out = {}
+    for node, c in partition.items():
+        if c not in mapping:
+            mapping[c] = len(mapping)
+        out[node] = mapping[c]
+    return out
+
+
+def aggregate_graph(G, partition, weight='weight'):
+    
+    H = nx.Graph()
+    comms = set(partition.values())
+    H.add_nodes_from(comms)
+    for u, v, data in G.edges(data=True):
+        a, b = partition[u], partition[v]
+        w = data.get(weight, 1.0)
+        if H.has_edge(a, b):
+            H[a][b][weight] += w
+        else:
+            H.add_edge(a, b, **{weight: w})
+    return H
+
+
+def local_move(G, initial_partition, active_nodes=None, max_passes=100,
+               seed=0, tol=1e-12, weight='weight'):
+    
+    part = dict(initial_partition)
+    nodes = list(G.nodes())
+    m = G.size(weight=weight)
+    if m <= 0 or not nodes:
+        return part, set(), 0
+    degree = dict(G.degree(weight=weight))
+    
+    # Store weighted adjacency; self-loops are omitted from k_i,C because their
+    # internal-edge contribution is invariant under a community move.
+    
+    adj = {}
+    for u in nodes:
+        adj[u] = []
+        for v, data in G[u].items():
+            if u == v:
+                continue
+            adj[u].append((v, data.get(weight, 1.0)))
+    community_degree = defaultdict(float)
+    for u in nodes:
+        community_degree[part[u]] += degree[u]
+    active = set(nodes) if active_nodes is None else set(active_nodes) & set(nodes)
+    moved_nodes = set()
+    passes = 0
+    rng = random.Random(seed)
+    for p in range(max_passes):
+        if not active:
+            break
+        passes += 1
+        order = list(active)
+        rng.shuffle(order)
+        next_active = set()
+        moved_this_pass = False
+        for u in order:
+            old = part[u]
+            ku = degree[u]
+            if ku <= 0:
+                continue
+            community_degree[old] -= ku
+            # Weight from u to each neighboring community
+            weights = defaultdict(float)
+            for v, w in adj[u]:
+                weights[part[v]] += w
+            # Candidate set includes old community, so node can stay.
+            candidates = set(weights)
+            candidates.add(old)
+            best = old
+            best_score = weights.get(old, 0.0)/m - ku*community_degree[old]/(2*m*m)
+            for c in candidates:
+                score = weights.get(c, 0.0)/m - ku*community_degree[c]/(2*m*m)
+                if score > best_score + tol:
+                    best, best_score = c, score
+            community_degree[best] += ku
+            if best != old:
+                part[u] = best
+                moved_nodes.add(u)
+                moved_this_pass = True
+                next_active.add(u)
+                for v, _ in adj[u]:
+                    next_active.add(v)
+        if not moved_this_pass:
+            break
+        active = next_active
+    return part, moved_nodes, passes
+
+
+def louvain(G, initial_partition=None, active_nodes=None, max_levels=20,
+            max_passes=100, seed=0, weight='weight'):
+    
+    if G.number_of_nodes() == 0:
+        return {}, {'levels': 0, 'moved_original': set(), 'active_original': set(), 'passes': 0}
+    current = G.copy()
+    
+    # Current graph node -> set of original nodes represented by it
+    
+    members = {u: {u} for u in current.nodes()}
+    if initial_partition is None:
+        part0 = {u: i for i, u in enumerate(current.nodes())}
+    else:
+        part0 = dict(initial_partition)
+        next_label = max(part0.values(), default=-1) + 1
+        for u in current.nodes():
+            if u not in part0:
+                part0[u] = next_label
+                next_label += 1
+    active0 = set(current.nodes()) if active_nodes is None else set(active_nodes)
+    part_at_level = part0
+    total_moved_original = set()
+    total_active_original = set()
+    total_passes = 0
+    previous_q = -float('inf')
+    levels_done = 0
+    for level in range(max_levels):
+        levels_done += 1
+        active = active0 if level == 0 else set(current.nodes()) if active0 is None else set(active0)
+        
+        # For later levels, active0 is translated below after aggregation.
+        
+        part_at_level, moved, passes = local_move(
+            current, part_at_level, active_nodes=active,
+            max_passes=max_passes, seed=seed + level, weight=weight)
+        total_passes += passes
+        for u in moved:
+            total_moved_original.update(members.get(u, {u}))
+        for u in active:
+            total_active_original.update(members.get(u, {u}))
+        q = modularity(current, part_at_level, weight=weight)
+        
+        # A level with no contraction cannot improve further through aggregation.
+        
+        k = len(set(part_at_level.values()))
+        if k == current.number_of_nodes() or k <= 1 or q <= previous_q + 1e-12:
+            break
+        previous_q = q
+        new_graph = aggregate_graph(current, part_at_level, weight=weight)
+        new_members = {c: set() for c in set(part_at_level.values())}
+        for u, c in part_at_level.items():
+            new_members[c].update(members[u])
+        
+        # Determine which contracted nodes are in/adjacent to the affected region.
+        # On level 0 this maps new-node neighbourhoods to supernodes; later levels
+        # preserve and expand this active region.
+        
+        if active_nodes is None:
+            active0 = set(new_graph.nodes())
+        else:
+            active_super = {part_at_level[u] for u in active if u in part_at_level}
+            for c in list(active_super):
+                active_super.update(new_graph.neighbors(c))
+            active0 = active_super
+        current, members = new_graph, new_members
+        
+        # At a new level, each supernode starts as its own community; that is the
+        # standard Louvain aggregation phase.
+        
+        part_at_level = {u: u for u in current.nodes()}
+    # Translate final partition from current graph level back to original nodes.
+    final = {}
+    for u, c in part_at_level.items():
+        for original in members[u]:
+            final[original] = c
+    return relabel(final), {
+        'levels': levels_done,
+        'moved_original': total_moved_original,
+        'active_original': total_active_original,
+        'passes': total_passes,
+    }
+
+
+def generate_sbm(sizes=(100, 100, 100), p_in=0.30, p_out=0.05, seed=0):
+    P = [[p_in if i == j else p_out for j in range(len(sizes))]
+         for i in range(len(sizes))]
+    G = nx.stochastic_block_model(list(sizes), P, seed=seed)
+    # Normalize to explicit unit weights for all algorithms.
+    for u, v in G.edges():
+        G[u][v]['weight'] = 1.0
+    truth = {}
+    node = 0
+    for c, size in enumerate(sizes):
+        for _ in range(size):
+            truth[node] = c
+            node += 1
+    return G, truth
+
+
+def add_bridge_nodes(G, old_truth, n_bridge, p_bridge=0.30, p_out=0.05, seed=1):
+    
+    rng = np.random.default_rng(seed)
+    H = G.copy()
+    old_nodes = list(G.nodes())
+    comm_nodes = {c: [u for u in old_nodes if old_truth[u] == c] for c in sorted(set(old_truth.values()))}
+    if len(comm_nodes) < 3:
+        raise ValueError('Use at least three original communities.')
+    new_nodes = list(range(max(old_nodes, default=-1) + 1, max(old_nodes, default=-1) + 1 + n_bridge))
+    H.add_nodes_from(new_nodes)
+    for v in new_nodes:
+        for c in (0, 1, 2):
+            prob = p_bridge if c in (0, 1) else p_out
+            targets = comm_nodes[c]
+            # independent Bernoulli edges to old nodes
+            for u in targets:
+                if rng.random() < prob:
+                    H.add_edge(v, u, weight=1.0)
+    # vectorized generation among bridge nodes
+    if n_bridge > 1:
+        tri = np.triu(rng.random((n_bridge, n_bridge)) < (p_bridge * 0.5), k=1)
+        ii, jj = np.where(tri)
+        H.add_weighted_edges_from((new_nodes[i], new_nodes[j], 1.0) for i, j in zip(ii, jj))
+    return H, new_nodes
+
+
+def matched_change_fraction(part_a, part_b, nodes):
+    
+    la = sorted(set(part_a[u] for u in nodes))
+    lb = sorted(set(part_b[u] for u in nodes))
+    ia = {c:i for i,c in enumerate(la)}
+    ib = {c:i for i,c in enumerate(lb)}
+    contingency = np.zeros((len(la), len(lb)), dtype=np.int64)
+    for u in nodes:
+        contingency[ia[part_a[u]], ib[part_b[u]]] += 1
+    rows, cols = linear_sum_assignment(-contingency)
+    matched = int(contingency[rows, cols].sum())
+    return 1.0 - matched / len(nodes)
+
+
+def evaluate_one(n_bridge, sizes=(100,100,100), p_in=0.30, p_out=0.05,
+                 p_bridge=0.30, seed=0):
+    G0, truth0 = generate_sbm(sizes, p_in, p_out, seed=seed)
+    old_nodes = list(G0.nodes())
+    t0 = time.perf_counter()
+    old_part, old_diag = louvain(G0, seed=seed)
+    old_runtime = time.perf_counter() - t0
+    G1, new_nodes = add_bridge_nodes(G0, truth0, n_bridge, p_bridge, p_out, seed=seed+10000)
+
+    # Full recomputation from singleton communities
+    t0 = time.perf_counter()
+    static_part, static_diag = louvain(G1, seed=seed+20000)
+    static_time = time.perf_counter() - t0
+
+    # Warm start from old partition, with each new node assigned a singleton label
+    warm = dict(old_part)
+    next_label = max(warm.values(), default=-1) + 1
+    for v in new_nodes:
+        warm[v] = next_label
+        next_label += 1
+    # Initial affected set = new nodes plus their immediate neighbours
+    active = set(new_nodes)
+    for v in new_nodes:
+        active.update(G1.neighbors(v))
+    t0 = time.perf_counter()
+    inc_part, inc_diag = louvain(
+        G1, initial_partition=warm, active_nodes=active,
+        seed=seed+30000)
+    inc_time = time.perf_counter() - t0
+
+    q_static = modularity(G1, static_part)
+    q_inc = modularity(G1, inc_part)
+    static_old_ari = adjusted_rand_score([truth0[u] for u in old_nodes], [static_part[u] for u in old_nodes])
+    inc_old_ari = adjusted_rand_score([truth0[u] for u in old_nodes], [inc_part[u] for u in old_nodes])
+    old_partition_stability = adjusted_rand_score([old_part[u] for u in old_nodes], [static_part[u] for u in old_nodes])
+    inc_vs_static_old = adjusted_rand_score([static_part[u] for u in old_nodes], [inc_part[u] for u in old_nodes])
+    inc_vs_static_all = adjusted_rand_score([static_part[u] for u in G1.nodes()], [inc_part[u] for u in G1.nodes()])
+    old_change_static = matched_change_fraction(old_part, static_part, old_nodes)
+    old_change_incremental = matched_change_fraction(old_part, inc_part, old_nodes)
+    active_fraction = len(inc_diag['active_original']) / G1.number_of_nodes()
+    speedup = static_time / inc_time if inc_time > 0 else float('inf')
+    return {
+        'bridge_nodes': n_bridge, 'bridge_fraction_of_old': n_bridge/len(old_nodes),
+        'nodes_total': G1.number_of_nodes(), 'edges_total': G1.number_of_edges(),
+        'static_runtime': static_time, 'incremental_runtime': inc_time, 'speedup': speedup,
+        'Q_static': q_static, 'Q_incremental': q_inc, 'Q_gap_static_minus_incremental': q_static-q_inc,
+        'static_ARI_old_vs_truth': static_old_ari, 'incremental_ARI_old_vs_truth': inc_old_ari,
+        'old_partition_stability_ARI': old_partition_stability,
+        'incremental_vs_static_ARI_old': inc_vs_static_old,
+        'incremental_vs_static_ARI_all': inc_vs_static_all,
+        'old_change_fraction_static': old_change_static,
+        'old_change_fraction_incremental': old_change_incremental,
+        'incremental_active_fraction': active_fraction,
+        'static_communities': len(set(static_part.values())),
+        'incremental_communities': len(set(inc_part.values())),
+        'static_levels': static_diag['levels'], 'incremental_levels': inc_diag['levels'],
+        'incremental_passes': inc_diag['passes'], 'old_detection_runtime': old_runtime,
+    }
+
+
+def run_experiment():
+    sizes = (100, 100, 100)
+    p_in, p_out, p_bridge = 0.30, 0.05, 0.30
+    bridge_values = [5, 10, 20, 30, 50, 75, 100, 150, 200, 300]
+    # Start with 3 to check correctness/runtime. Use 20+ for reportable averages.
+    repetitions = 3
+    rows = []
+    for nb in bridge_values:
+        print(f'Bridge nodes {nb}:', flush=True)
+        for r in range(repetitions):
+            row = evaluate_one(nb, sizes, p_in, p_out, p_bridge, seed=20261014 + 1000*nb + r)
+            rows.append(row)
+            print(f"  rep {r+1}/{repetitions}: agreement(old)={row['incremental_vs_static_ARI_old']:.3f}, "
+                  f"Qgap={row['Q_gap_static_minus_incremental']:.4f}, "
+                  f"active={row['incremental_active_fraction']:.2f}, speedup={row['speedup']:.2f}x", flush=True)
+    raw = pd.DataFrame(rows)
+    raw.to_csv('adaptive_bridge_raw.csv', index=False)
+    summary = raw.groupby('bridge_nodes').agg(
+        perturbation_static_mean=('old_change_fraction_static','mean'),
+        perturbation_static_sd=('old_change_fraction_static','std'),
+        perturbation_incremental_mean=('old_change_fraction_incremental','mean'),
+        agreement_old_mean=('incremental_vs_static_ARI_old','mean'),
+        agreement_all_mean=('incremental_vs_static_ARI_all','mean'),
+        static_ARI_mean=('static_ARI_old_vs_truth','mean'),
+        incremental_ARI_mean=('incremental_ARI_old_vs_truth','mean'),
+        Q_static_mean=('Q_static','mean'), Q_incremental_mean=('Q_incremental','mean'),
+        Q_gap_mean=('Q_gap_static_minus_incremental','mean'),
+        static_time_mean=('static_runtime','mean'), incremental_time_mean=('incremental_runtime','mean'),
+        speedup_mean=('speedup','mean'), active_fraction_mean=('incremental_active_fraction','mean'),
+        static_communities_mean=('static_communities','mean'), incremental_communities_mean=('incremental_communities','mean'),
+    ).reset_index()
+    summary.to_csv('adaptive_bridge_summary.csv', index=False)
+    print('\nSUMMARY\n', summary.to_string(index=False, float_format=lambda x:f'{x:.4f}'))
+
+    def plot(x, y1, y2=None, ylabel='', title='', filename='', yerr=None):
+        plt.figure(figsize=(8.5,5.3))
+        if yerr is not None:
+            plt.errorbar(x, y1, yerr=yerr, marker='o', capsize=3, label='Static recomputation')
+        else:
+            plt.plot(x, y1, marker='o', label='Static recomputation')
+        if y2 is not None:
+            plt.plot(x, y2, marker='s', label='Adaptive incremental')
+            plt.legend()
+        plt.xlabel('Number of bridge nodes')
+        plt.ylabel(ylabel)
+        plt.title(title)
+        plt.grid(alpha=.3)
+        plt.tight_layout()
+        plt.savefig(filename, dpi=250)
+        plt.show()
+
+    plot(summary.bridge_nodes, summary.perturbation_static_mean,
+         summary.perturbation_incremental_mean,
+         ylabel='Fraction of original nodes changing partition',
+         title='Old-node restructuring: static vs adaptive incremental',
+         filename='adaptive_bridge_perturbation.png')
+    plot(summary.bridge_nodes, summary.agreement_old_mean,
+         ylabel='ARI on original nodes: incremental vs static',
+         title='Agreement with full Louvain recomputation',
+         filename='adaptive_bridge_agreement.png')
+    plot(summary.bridge_nodes, summary.Q_static_mean, summary.Q_incremental_mean,
+         ylabel='Modularity Q', title='Modularity: static vs adaptive incremental',
+         filename='adaptive_bridge_modularity.png')
+    plot(summary.bridge_nodes, summary.speedup_mean,
+         ylabel='Static runtime / incremental runtime', title='Runtime speedup',
+         filename='adaptive_bridge_speedup.png')
+    plot(summary.bridge_nodes, summary.active_fraction_mean,
+         ylabel='Fraction of nodes activated/reconsidered', title='How much of the graph is revisited?',
+         filename='adaptive_bridge_active_fraction.png')
+    return raw, summary
+
+if __name__ == '__main__':
+    raw, summary = run_experiment()

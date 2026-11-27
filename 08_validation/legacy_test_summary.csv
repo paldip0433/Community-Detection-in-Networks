@@ -1,0 +1,10 @@
+test,total_tests,passed_tests,maximum_error,failed_tests
+aggregation_degree,70,70,2.842170943040401e-14,0
+aggregation_modularity,70,70,1.3877787807814457e-16,0
+aggregation_weight,70,70,2.842170943040401e-14,0
+label_invariance,1,1,0.0,0
+local_move_monotonicity,70,70,0.0,0
+modularity_agreement,70,70,1.1102230246251565e-16,0
+modularity_gain,70,70,1.3357370765021415e-16,0
+multilevel_monotonicity,70,70,0.0,0
+partition_validity,70,70,0.0,0

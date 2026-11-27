@@ -1,0 +1,1398 @@
+import networkx as nx
+import random
+from sklearn.metrics import adjusted_rand_score
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+
+
+
+# 1.Calculate modularity
+
+
+
+
+
+
+
+
+
+def calculate_modularity(G, communities):
+
+    # Total edge weight
+    m = G.size(weight="weight")
+
+    if m == 0:
+        return 0.0
+
+    Q = 0.0
+
+    community_ids = set(communities.values())
+
+    for community in community_ids:
+
+        # Nodes in this community
+        nodes = [
+            node for node in G.nodes()
+            if communities[node] == community
+        ]
+
+
+        # Internal edge weight
+
+
+        internal_weight = G.subgraph(nodes).size(
+            weight="weight"
+        )
+
+
+        # Sum of degrees of nodes in community
+
+
+        degree_sum = 0.0
+
+        for node in nodes:
+
+            degree_sum += G.degree(
+                node,
+                weight="weight"
+            )
+
+
+        # Modularity contribution
+
+
+        Q += (
+            internal_weight / m
+            -
+            (degree_sum / (2 * m)) ** 2
+        )
+
+    return Q
+
+
+
+
+
+
+
+
+# 2. Calculate modularity gain
+
+
+
+
+
+
+
+def modularity_gain(
+    G,
+    node,
+    target_community,
+    communities
+):
+
+    old_Q = calculate_modularity(
+        G,
+        communities
+    )
+
+    # Copy current partition
+    new_communities = communities.copy()
+
+    # Move node
+    new_communities[node] = target_community
+
+    # Calculate new modularity
+    new_Q = calculate_modularity(
+        G,
+        new_communities
+    )
+
+    return new_Q - old_Q
+
+
+
+
+
+
+
+
+# 3. Phase 1: Local moving
+
+
+
+
+
+
+
+
+def local_moving(G, communities):
+
+    while True:
+
+        improvement = False
+
+        # Random order of nodes
+        nodes = list(G.nodes())
+        random.shuffle(nodes)
+
+        for node in nodes:
+
+            current_community = communities[node]
+
+
+            # Communities of neighbouring nodes
+
+
+            neighbouring_communities = set()
+
+            for neighbour in G.neighbors(node):
+
+                neighbouring_communities.add(
+                    communities[neighbour]
+                )
+
+            # Node can stay where it is
+            best_community = current_community
+            best_gain = 0.0
+
+
+            # Try each neighbouring community
+
+
+            for target_community in neighbouring_communities:
+
+                if target_community == current_community:
+                    continue
+
+                gain = modularity_gain(
+                    G,
+                    node,
+                    target_community,
+                    communities
+                )
+
+                # Only accept a positive improvement
+                if gain > best_gain:
+
+                    best_gain = gain
+                    best_community = target_community
+
+
+            # Perform best move
+
+
+            if best_community != current_community:
+
+                communities[node] = best_community
+
+                improvement = True
+
+
+        # Stop when no node can improve modularity
+
+
+        if not improvement:
+            break
+
+    return communities
+
+
+
+
+
+
+
+
+
+
+
+
+# 4. Relabel communities
+
+
+
+
+
+
+
+
+
+
+
+def relabel_communities(communities):
+
+    old_labels = sorted(
+        set(communities.values())
+    )
+
+    label_mapping = {}
+
+    for new_label, old_label in enumerate(old_labels):
+
+        label_mapping[old_label] = new_label
+
+    new_communities = {}
+
+    for node, community in communities.items():
+
+        new_communities[node] = label_mapping[
+            community
+        ]
+
+    return new_communities
+
+
+
+
+
+
+
+
+
+
+# 5. Phase 2: Aggregate graph
+
+
+
+
+
+
+
+
+
+
+
+def aggregate_graph(G, communities):
+
+    new_graph = nx.Graph()
+
+    community_ids = sorted(
+        set(communities.values())
+    )
+
+
+    # Each community becomes one super-node
+
+
+    for community in community_ids:
+
+        new_graph.add_node(community)
+
+
+    # Process every edge
+
+
+    for u, v, data in G.edges(data=True):
+
+        weight = data.get("weight", 1)
+
+        community_u = communities[u]
+        community_v = communities[v]
+
+
+        # Edge inside same community
+
+
+        if community_u == community_v:
+
+            if new_graph.has_edge(
+                community_u,
+                community_u
+            ):
+
+                new_graph[
+                    community_u
+                ][
+                    community_u
+                ]["weight"] += weight
+
+            else:
+
+                new_graph.add_edge(
+                    community_u,
+                    community_u,
+                    weight=weight
+                )
+
+
+        # Edge between two communities
+
+
+        else:
+
+            if new_graph.has_edge(
+                community_u,
+                community_v
+            ):
+
+                new_graph[
+                    community_u
+                ][
+                    community_v
+                ]["weight"] += weight
+
+            else:
+
+                new_graph.add_edge(
+                    community_u,
+                    community_v,
+                    weight=weight
+                )
+
+    return new_graph
+
+
+
+
+
+
+
+
+
+
+
+# 6. Main Louvain algorithm
+
+
+
+
+
+
+
+
+
+
+
+
+
+def louvain_algorithm(G, max_levels=10):
+
+
+    # Mapping from current nodes to ORIGINAL nodes
+
+
+    node_members = {}
+
+    for node in G.nodes():
+
+        node_members[node] = {node}
+
+    # Current graph
+    current_graph = G.copy()
+
+    # Final partition of original nodes
+    final_partition = {}
+
+    previous_modularity = -1.0
+
+
+    # Louvain levels
+
+
+    for level in range(max_levels):
+
+        print("\n--------------------------------")
+        print("Louvain Level:", level + 1)
+        print("--------------------------------")
+
+
+        # Initially every current node is its own community
+
+
+        communities = {}
+
+        for node in current_graph.nodes():
+
+            communities[node] = node
+
+
+        # PHASE 1: Local moving
+
+
+        communities = local_moving(
+            current_graph,
+            communities
+        )
+
+        communities = relabel_communities(
+            communities
+        )
+
+
+        # Calculate modularity
+
+
+        current_modularity = calculate_modularity(
+            current_graph,
+            communities
+        )
+
+        print(
+            "Number of communities:",
+            len(set(communities.values()))
+        )
+
+        print(
+            "Modularity:",
+            current_modularity
+        )
+
+
+        # Update ORIGINAL node partition
+
+
+        final_partition = {}
+
+        for current_node in current_graph.nodes():
+
+            community = communities[current_node]
+
+            original_nodes = node_members[
+                current_node
+            ]
+
+            for original_node in original_nodes:
+
+                final_partition[
+                    original_node
+                ] = community
+
+
+        # Check whether modularity improved
+
+
+        if (
+            current_modularity
+            <= previous_modularity + 1e-10
+        ):
+
+            break
+
+        previous_modularity = current_modularity
+
+
+        # If only one community remains, stop
+
+
+        number_of_communities = len(
+            set(communities.values())
+        )
+
+        if number_of_communities == 1:
+
+            break
+
+
+        # PHASE 2: Aggregation
+
+
+        new_graph = aggregate_graph(
+            current_graph,
+            communities
+        )
+
+        print(
+            "Nodes after aggregation:",
+            new_graph.number_of_nodes()
+        )
+
+
+        # Mapping for new super-nodes
+
+
+        new_node_members = {}
+
+        for new_node in new_graph.nodes():
+
+            members = set()
+
+            for current_node in current_graph.nodes():
+
+                if (
+                    communities[current_node]
+                    == new_node
+                ):
+
+                    members.update(
+                        node_members[current_node]
+                    )
+
+            new_node_members[
+                new_node
+            ] = members
+
+
+        # Move to next level
+
+
+        current_graph = new_graph
+
+        node_members = new_node_members
+
+    return final_partition
+
+
+
+
+
+
+
+
+
+
+
+# 7. Create probability matrix for SBM
+
+
+
+
+
+
+
+
+
+
+def create_probability_matrix(
+    number_of_communities,
+    p_in,
+    p_out
+):
+
+    P = []
+
+    for i in range(number_of_communities):
+
+        row = []
+
+        for j in range(number_of_communities):
+
+            if i == j:
+
+                row.append(p_in)
+
+            else:
+
+                row.append(p_out)
+
+        P.append(row)
+
+    return P
+
+
+
+
+
+
+
+
+
+
+
+# 8. Generate SBM
+
+
+
+
+
+
+
+
+
+
+
+def generate_sbm(
+    sizes,
+    p_in,
+    p_out,
+    seed=42
+):
+
+    number_of_communities = len(sizes)
+
+    probabilities = create_probability_matrix(
+        number_of_communities,
+        p_in,
+        p_out
+    )
+
+    G = nx.stochastic_block_model(
+        sizes,
+        probabilities,
+        seed=seed
+    )
+
+    return G
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 9. Generate TRUE SBM partition
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def get_true_sbm_partition(sizes):
+
+    true_partition = {}
+
+    node = 0
+
+    for community, size in enumerate(sizes):
+
+        for _ in range(size):
+
+            true_partition[node] = community
+
+            node += 1
+
+    return true_partition
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 10. Calculate ARI
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def calculate_ari(
+    true_partition,
+    detected_partition
+):
+
+    nodes = sorted(
+        true_partition.keys()
+    )
+
+    true_labels = [
+        true_partition[node]
+        for node in nodes
+    ]
+
+    detected_labels = [
+        detected_partition[node]
+        for node in nodes
+    ]
+
+    ari = adjusted_rand_score(
+        true_labels,
+        detected_labels
+    )
+
+    return ari
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 11. Run ONE SBM experiment
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def run_experiment(
+    name,
+    sizes,
+    p_in,
+    p_out,
+    seed=42
+):
+
+    print("\n")
+    print("==============================================")
+    print(name)
+    print("==============================================")
+
+    print("Community sizes:", sizes)
+    print("p_in:", p_in)
+    print("p_out:", p_out)
+    print("Random seed:", seed)
+
+
+    # Generate SBM
+
+
+    G = generate_sbm(
+        sizes,
+        p_in,
+        p_out,
+        seed
+    )
+
+    print(
+        "Number of nodes:",
+        G.number_of_nodes()
+    )
+
+    print(
+        "Number of edges:",
+        G.number_of_edges()
+    )
+
+
+    # True communities
+
+
+    true_partition = get_true_sbm_partition(
+        sizes
+    )
+
+
+    # Run Louvain
+
+
+    detected_partition = louvain_algorithm(
+        G
+    )
+
+
+    # Final modularity
+
+
+    final_Q = calculate_modularity(
+        G,
+        detected_partition
+    )
+
+
+    # Number of detected communities
+
+
+    detected_communities = len(
+        set(
+            detected_partition.values()
+        )
+    )
+
+
+    # ARI
+
+
+    ari = calculate_ari(
+        true_partition,
+        detected_partition
+    )
+
+    print("\nRESULTS")
+    print("----------------------------------------------")
+
+    print(
+        "True number of communities:",
+        len(sizes)
+    )
+
+    print(
+        "Detected number of communities:",
+        detected_communities
+    )
+
+    print(
+        "Final modularity:",
+        final_Q
+    )
+
+    print(
+        "ARI:",
+        ari
+    )
+
+    return {
+        "name": name,
+        "sizes": sizes,
+        "p_in": p_in,
+        "p_out": p_out,
+        "seed": seed,
+        "nodes": G.number_of_nodes(),
+        "edges": G.number_of_edges(),
+        "true_communities": len(sizes),
+        "detected_communities": detected_communities,
+        "modularity": final_Q,
+        "ARI": ari
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 12. MAIN EXPERIMENT SECTION
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if __name__ == "__main__":
+
+    # =====================================================
+    # EXPERIMENTS
+    # =====================================================
+    #
+    #
+    # sizes = community sizes
+    # p_in  = probability of edge within a community
+    # p_out = probability of edge between communities
+    #
+    # =====================================================
+
+    experiments = [
+
+        # -------------------------------------------------
+        # Experiment 1: Easy
+        # -------------------------------------------------
+
+        {
+            "name": "Easy SBM",
+            "sizes": [40, 40, 40],
+            "p_in": 0.30,
+            "p_out": 0.01
+        },
+
+        # -------------------------------------------------
+        # Experiment 2: Moderate
+        # -------------------------------------------------
+
+        {
+            "name": "Moderate SBM",
+            "sizes": [40, 40, 40],
+            "p_in": 0.20,
+            "p_out": 0.05
+        },
+
+        # -------------------------------------------------
+        # Experiment 3: Difficult
+        # -------------------------------------------------
+
+        {
+            "name": "Difficult SBM",
+            "sizes": [40, 40, 40],
+            "p_in": 0.15,
+            "p_out": 0.08
+        },
+
+        # -------------------------------------------------
+        # Experiment 4: Unequal community sizes
+        # -------------------------------------------------
+
+        {
+            "name": "Unequal Communities",
+            "sizes": [60, 40, 20],
+            "p_in": 0.30,
+            "p_out": 0.03
+        },
+
+        # -------------------------------------------------
+        # Experiment 5: Five communities
+        # -------------------------------------------------
+
+        {
+            "name": "Five Communities",
+            "sizes": [30, 30, 30, 30, 30],
+            "p_in": 0.25,
+            "p_out": 0.03
+        }
+    ]
+
+
+    
+    # RANDOM SEEDS
+    #
+    # Use multiple seeds because SBM is stochastic.
+    
+
+    seeds = [1, 2, 3, 4, 5]
+
+
+    
+    
+    
+
+    all_results = []
+
+    for experiment in experiments:
+
+        for seed in seeds:
+
+            result = run_experiment(
+                name=experiment["name"],
+                sizes=experiment["sizes"],
+                p_in=experiment["p_in"],
+                p_out=experiment["p_out"],
+                seed=seed
+            )
+
+            all_results.append(result)
+
+
+    
+    # FINAL SUMMARY
+    
+
+    print("\n\n")
+    print("======================================================")
+    print("FINAL SUMMARY")
+    print("======================================================")
+
+    print(
+        f"{'Experiment':<25}"
+        f"{'Seed':<8}"
+        f"{'True K':<8}"
+        f"{'Detected K':<12}"
+        f"{'Modularity':<15}"
+        f"{'ARI':<10}"
+    )
+
+    print("-" * 80)
+
+    for result in all_results:
+
+        print(
+            f"{result['name']:<25}"
+            f"{result['seed']:<8}"
+            f"{result['true_communities']:<8}"
+            f"{result['detected_communities']:<12}"
+            f"{result['modularity']:<15.4f}"
+            f"{result['ARI']:<10.4f}"
+        )
+
+
+
+
+
+
+
+
+
+# 13. Run 100 SBM realizations for fixed
+#     (p_in, p_out)
+
+
+
+
+
+
+
+
+
+
+def run_100_realizations(
+    sizes,
+    p_in,
+    p_out,
+    number_of_realizations=100
+):
+
+    # Store ARI from every realization
+    ari_values = []
+
+    
+    # Generate independent SBM realizations
+
+
+    for realization in range(
+        number_of_realizations
+    ):
+
+        # Different seed for every realization
+        seed = realization
+
+        # Generate SBM
+        G = generate_sbm(
+            sizes=sizes,
+            p_in=p_in,
+            p_out=p_out,
+            seed=seed
+        )
+
+        # True SBM communities
+        true_partition = get_true_sbm_partition(
+            sizes
+        )
+
+        # Run OUR Louvain implementation
+        detected_partition = louvain_algorithm(
+            G
+        )
+
+        # Calculate ARI
+        ari = calculate_ari(
+            true_partition,
+            detected_partition
+        )
+
+        # Store ARI
+        ari_values.append(ari)
+
+
+    # Average ARI over 100 realizations
+    
+
+    mean_ari = (
+        sum(ari_values)
+        / number_of_realizations
+    )
+
+    return mean_ari, ari_values
+
+
+
+
+
+
+
+
+
+# 14. Vary p_in and p_out
+
+
+
+
+
+
+
+
+
+
+
+def run_parameter_experiment(
+    sizes,
+    p_in_values,
+    p_out_values,
+    number_of_realizations=100
+):
+
+    
+    # Matrix containing mean ARI values
+    #
+    # rows    -> p_out
+    # columns -> p_in
+    # 
+
+    mean_ari_matrix = np.full(
+        (
+            len(p_out_values),
+            len(p_in_values)
+        ),
+        np.nan
+    )
+
+    
+    # Try every pair (p_in, p_out)
+    
+
+    for i, p_out in enumerate(
+        p_out_values
+    ):
+
+        for j, p_in in enumerate(
+            p_in_values
+        ):
+
+            
+
+            if not (
+                0 < p_out < p_in < 0.5
+            ):
+
+                continue
+
+            print("\n======================================")
+            print(
+                "p_in  =",
+                p_in
+            )
+            print(
+                "p_out =",
+                p_out
+            )
+            print(
+                "Running",
+                number_of_realizations,
+                "realizations..."
+            )
+            print("======================================")
+
+            
+            # Run 100 independent realizations
+            
+
+            mean_ari, ari_values = (
+                run_100_realizations(
+                    sizes=sizes,
+                    p_in=p_in,
+                    p_out=p_out,
+                    number_of_realizations=
+                        number_of_realizations
+                )
+            )
+
+            
+            # Store average ARI
+            
+
+            mean_ari_matrix[i][j] = mean_ari
+
+            print(
+                "Mean ARI =",
+                mean_ari
+            )
+
+    return mean_ari_matrix
+
+
+
+# 15. Plot p_out versus p_in
+
+
+def plot_mean_ari(
+    p_in_values,
+    p_out_values,
+    mean_ari_matrix
+):
+
+    plt.figure(
+        figsize=(9, 7)
+    )
+
+    
+
+    image = plt.imshow(
+        mean_ari_matrix,
+        origin="lower",
+        aspect="auto",
+        extent=[
+            min(p_in_values),
+            max(p_in_values),
+            min(p_out_values),
+            max(p_out_values)
+        ],
+        vmin=-1,
+        vmax=1
+    )
+
+    
+    # Labels
+    
+
+    plt.xlabel(
+        r"$p_{\mathrm{in}}$"
+    )
+
+    plt.ylabel(
+        r"$p_{\mathrm{out}}$"
+    )
+
+    plt.title(
+        "Mean ARI over 100 SBM Realizations"
+    )
+
+    
+    # Color bar
+    
+
+    colorbar = plt.colorbar(
+        image
+    )
+
+    colorbar.set_label(
+        "Mean ARI"
+    )
+
+    
+    # Show plot
+    
+
+    plt.tight_layout()
+
+    plt.show()
+
+
+
+# 16. FINAL EXPERIMENT
+
+
+if __name__ == "__main__":
+
+    
+    # FIXED SBM COMMUNITY SIZES
+    
+
+    sizes = [
+        40,
+        40,
+        40
+    ]
+
+
+    
+
+    p_in_values = [
+        0.10,
+        0.15,
+        0.20,
+        0.25,
+        0.30,
+        0.35,
+        0.40,
+        0.45
+    ]
+
+
+    
+
+    p_out_values = [
+        0.05,
+        0.10,
+        0.15,
+        0.20,
+        0.25,
+        0.30,
+        0.35,
+        0.40
+    ]
+
+
+    
+
+    number_of_realizations = 100
+
+
+    
+
+    mean_ari_matrix = (
+        run_parameter_experiment(
+            sizes=sizes,
+            p_in_values=p_in_values,
+            p_out_values=p_out_values,
+            number_of_realizations=
+                number_of_realizations
+        )
+    )
+
+
+    
+
+    print("\n\n")
+    print("====================================================")
+    print("MEAN ARI RESULTS")
+    print("====================================================")
+
+    for i, p_out in enumerate(
+        p_out_values
+    ):
+
+        for j, p_in in enumerate(
+            p_in_values
+        ):
+
+            mean_ari = (
+                mean_ari_matrix[i][j]
+            )
+
+            # Only print valid pairs
+            if not np.isnan(mean_ari):
+
+                print(
+                    "p_in =",
+                    p_in,
+                    ", p_out =",
+                    p_out,
+                    ", Mean ARI =",
+                    mean_ari
+                )
+
+
+    
+
+    plot_mean_ari(
+        p_in_values,
+        p_out_values,
+        mean_ari_matrix
+    )

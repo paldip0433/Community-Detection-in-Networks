@@ -1,0 +1,101 @@
+graph,seed,initialization,initial_modularity,final_modularity,modularity_error,levels,communities,stop_reason,local_pass_limit_reached
+Karate Club,0,singleton,-0.04980276134122288,0.4197896120973044,5.551115123125783e-17,3,4,no_further_contraction,False
+Karate Club,0,random,-0.11711045364891517,0.34582511505588426,0.0,2,3,no_further_contraction,False
+Karate Club,1,singleton,-0.04980276134122288,0.4188034188034188,5.551115123125783e-17,3,4,no_further_contraction,False
+Karate Club,1,random,-0.04511834319526625,0.4197896120973044,5.551115123125783e-17,2,4,no_further_contraction,False
+Karate Club,2,singleton,-0.04980276134122288,0.4188034188034188,5.551115123125783e-17,3,4,no_further_contraction,False
+Karate Club,2,random,-0.0016436554898093397,0.3794378698224853,1.1102230246251565e-16,2,3,no_further_contraction,False
+Karate Club,3,singleton,-0.04980276134122288,0.4155982905982907,5.551115123125783e-17,3,4,no_further_contraction,False
+Karate Club,3,random,-0.0067389875082183165,0.3953813280736357,0.0,3,3,no_further_contraction,False
+Karate Club,4,singleton,-0.04980276134122288,0.41510519395134776,0.0,3,4,no_further_contraction,False
+Karate Club,4,random,-0.02079224194608812,0.39217619986850755,0.0,3,3,no_further_contraction,False
+Karate Club,5,singleton,-0.04980276134122288,0.4155982905982907,5.551115123125783e-17,3,4,no_further_contraction,False
+Karate Club,5,random,-0.09935897435897437,0.3943951347797502,0.0,2,3,no_further_contraction,False
+Karate Club,6,singleton,-0.04980276134122288,0.4155982905982907,5.551115123125783e-17,3,4,no_further_contraction,False
+Karate Club,6,random,-0.08768902038132807,0.39217619986850755,0.0,3,3,no_further_contraction,False
+Karate Club,7,singleton,-0.04980276134122288,0.4155982905982907,5.551115123125783e-17,3,4,no_further_contraction,False
+Karate Club,7,random,-0.020956607495069054,0.39809335963182113,0.0,2,4,no_further_contraction,False
+Karate Club,8,singleton,-0.04980276134122288,0.4197896120973044,5.551115123125783e-17,3,4,no_further_contraction,False
+Karate Club,8,random,0.012409598948060485,0.39217619986850755,0.0,3,3,no_further_contraction,False
+Karate Club,9,singleton,-0.04980276134122288,0.4188034188034188,5.551115123125783e-17,3,4,no_further_contraction,False
+Karate Club,9,random,-0.11415187376725837,0.4197896120973044,5.551115123125783e-17,2,4,no_further_contraction,False
+SBM,0,singleton,-0.008728058331082906,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,0,random,0.009210292812777271,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,1,singleton,-0.008728058331082906,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,1,random,-0.0045283746769028965,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,2,singleton,-0.008728058331082906,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,2,random,-0.009011226418733823,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,3,singleton,-0.008728058331082906,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,3,random,0.0013247945681108021,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,4,singleton,-0.008728058331082906,0.5529362293121407,0.0,3,3,no_further_contraction,False
+SBM,4,random,-0.00703290768103081,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,5,singleton,-0.008728058331082906,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,5,random,-0.002638015508660937,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,6,singleton,-0.008728058331082906,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,6,random,0.0027931021179738585,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,7,singleton,-0.008728058331082906,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,7,random,-0.021222175070406246,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,8,singleton,-0.008728058331082906,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,8,random,-0.003753713205509032,0.5529362293121407,0.0,2,3,no_further_contraction,False
+SBM,9,singleton,-0.008728058331082906,0.5529362293121407,0.0,3,3,no_further_contraction,False
+SBM,9,random,-0.01981867983488287,0.5529362293121407,0.0,2,3,no_further_contraction,False
+Weighted graph,0,singleton,-0.028510476081753205,0.4161148750034888,5.551115123125783e-17,3,6,no_further_contraction,False
+Weighted graph,0,random,-0.08129837861763863,0.35264192679308665,5.551115123125783e-17,2,4,no_further_contraction,False
+Weighted graph,1,singleton,-0.028510476081753205,0.4067745429406332,5.551115123125783e-17,3,7,no_further_contraction,False
+Weighted graph,1,random,-0.0023114552943320366,0.35690067009661747,5.551115123125783e-17,2,4,no_further_contraction,False
+Weighted graph,2,singleton,-0.028510476081753205,0.41572747565848783,5.551115123125783e-17,3,6,no_further_contraction,False
+Weighted graph,2,random,-0.03757258287297281,0.34137672738502595,5.551115123125783e-17,2,4,no_further_contraction,False
+Weighted graph,3,singleton,-0.028510476081753205,0.40576967326865476,0.0,3,6,no_further_contraction,False
+Weighted graph,3,random,0.019408584088350674,0.32427482625744974,5.551115123125783e-17,2,4,no_further_contraction,False
+Weighted graph,4,singleton,-0.028510476081753205,0.39809885199692535,5.551115123125783e-17,3,7,no_further_contraction,False
+Weighted graph,4,random,-0.06845248827471193,0.35881746894651134,0.0,2,4,no_further_contraction,False
+Weighted graph,5,singleton,-0.028510476081753205,0.39633762246603005,5.551115123125783e-17,3,6,no_further_contraction,False
+Weighted graph,5,random,-0.0073079406699841296,0.3597585825163015,5.551115123125783e-17,2,4,no_further_contraction,False
+Weighted graph,6,singleton,-0.028510476081753205,0.4073308519711499,5.551115123125783e-17,3,7,no_further_contraction,False
+Weighted graph,6,random,0.08333183850595705,0.343226286468461,5.551115123125783e-17,2,4,no_further_contraction,False
+Weighted graph,7,singleton,-0.028510476081753205,0.39809885199692535,5.551115123125783e-17,3,7,no_further_contraction,False
+Weighted graph,7,random,-0.04452647394689783,0.35827601152313004,0.0,2,4,no_further_contraction,False
+Weighted graph,8,singleton,-0.028510476081753205,0.4070077797871335,5.551115123125783e-17,3,7,no_further_contraction,False
+Weighted graph,8,random,-0.07973190226544177,0.35878149303021606,5.551115123125783e-17,2,4,no_further_contraction,False
+Weighted graph,9,singleton,-0.028510476081753205,0.40576967326865476,0.0,3,6,no_further_contraction,False
+Weighted graph,9,random,0.0493214826879136,0.37426016648441063,0.0,2,4,no_further_contraction,False
+Weighted loops and isolates,0,singleton,-0.010256868719336716,0.42354031718020085,5.551115123125783e-17,3,7,no_further_contraction,False
+Weighted loops and isolates,0,random,-0.0665338707778593,0.36306525310054777,5.551115123125783e-17,2,4,no_further_contraction,False
+Weighted loops and isolates,1,singleton,-0.010256868719336716,0.4142230985909726,5.551115123125783e-17,3,8,no_further_contraction,False
+Weighted loops and isolates,1,random,0.011500514883550398,0.3604391652758954,0.0,2,4,no_further_contraction,False
+Weighted loops and isolates,2,singleton,-0.010256868719336716,0.4142230985909726,5.551115123125783e-17,3,8,no_further_contraction,False
+Weighted loops and isolates,2,random,-0.020587394317499307,0.35843709090701614,5.551115123125783e-17,2,5,no_further_contraction,False
+Weighted loops and isolates,3,singleton,-0.010256868719336716,0.41636865502447556,1.1102230246251565e-16,3,7,no_further_contraction,False
+Weighted loops and isolates,3,random,0.03233428441280413,0.37616569495527014,5.551115123125783e-17,2,4,no_further_contraction,False
+Weighted loops and isolates,4,singleton,-0.010256868719336716,0.4163686550244756,5.551115123125783e-17,3,7,no_further_contraction,False
+Weighted loops and isolates,4,random,-0.055300117338864384,0.34569977079543207,0.0,2,4,no_further_contraction,False
+Weighted loops and isolates,5,singleton,-0.010256868719336716,0.4053338861717794,5.551115123125783e-17,3,8,no_further_contraction,False
+Weighted loops and isolates,5,random,0.009971381761637428,0.37168987621870825,1.1102230246251565e-16,2,4,no_further_contraction,False
+Weighted loops and isolates,6,singleton,-0.010256868719336716,0.4075562506436855,0.0,3,6,no_further_contraction,False
+Weighted loops and isolates,6,random,0.09539194537656467,0.31073739809934275,0.0,2,4,no_further_contraction,False
+Weighted loops and isolates,7,singleton,-0.010256868719336716,0.41636865502447556,1.1102230246251565e-16,3,7,no_further_contraction,False
+Weighted loops and isolates,7,random,-0.027128426220773758,0.3758624531380046,0.0,2,4,no_further_contraction,False
+Weighted loops and isolates,8,singleton,-0.010256868719336716,0.4189262490224888,5.551115123125783e-17,3,7,no_further_contraction,False
+Weighted loops and isolates,8,random,-0.06179726848770681,0.4098774016344914,5.551115123125783e-17,2,4,no_further_contraction,False
+Weighted loops and isolates,9,singleton,-0.010256868719336716,0.40576729303438025,0.0,3,7,no_further_contraction,False
+Weighted loops and isolates,9,random,0.06355592802867466,0.38453501641666604,0.0,2,5,no_further_contraction,False
+Disconnected graph,0,singleton,-0.07600000000000001,0.48,0.0,4,2,no_further_contraction,False
+Disconnected graph,0,random,-0.026400000000000014,0.48,0.0,3,2,no_further_contraction,False
+Disconnected graph,1,singleton,-0.07600000000000001,0.48,0.0,4,2,no_further_contraction,False
+Disconnected graph,1,random,-0.1256,0.48,0.0,2,2,no_further_contraction,False
+Disconnected graph,2,singleton,-0.07600000000000001,0.48,0.0,4,2,no_further_contraction,False
+Disconnected graph,2,random,-0.0936,0.48,0.0,3,2,no_further_contraction,False
+Disconnected graph,3,singleton,-0.07600000000000001,0.48,0.0,4,2,no_further_contraction,False
+Disconnected graph,3,random,-0.007200000000000043,0.48,0.0,3,2,no_further_contraction,False
+Disconnected graph,4,singleton,-0.07600000000000001,0.48,0.0,4,2,no_further_contraction,False
+Disconnected graph,4,random,-0.05200000000000001,0.48,0.0,3,2,no_further_contraction,False
+Disconnected graph,5,singleton,-0.07600000000000001,0.48,0.0,4,2,no_further_contraction,False
+Disconnected graph,5,random,-0.14,0.48,0.0,3,2,no_further_contraction,False
+Disconnected graph,6,singleton,-0.07600000000000001,0.48,0.0,4,2,no_further_contraction,False
+Disconnected graph,6,random,-0.1136,0.48,0.0,3,2,no_further_contraction,False
+Disconnected graph,7,singleton,-0.07600000000000001,0.48,5.551115123125783e-17,3,3,no_further_contraction,False
+Disconnected graph,7,random,-0.1344,0.48,0.0,3,2,no_further_contraction,False
+Disconnected graph,8,singleton,-0.07600000000000001,0.48,0.0,4,2,no_further_contraction,False
+Disconnected graph,8,random,0.011200000000000036,0.48,5.551115123125783e-17,2,3,no_further_contraction,False
+Disconnected graph,9,singleton,-0.07600000000000001,0.48,0.0,4,2,no_further_contraction,False
+Disconnected graph,9,random,-0.13680000000000003,0.48,5.551115123125783e-17,2,3,no_further_contraction,False

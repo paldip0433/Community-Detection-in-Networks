@@ -1,0 +1,15 @@
+
+
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credentials.json
+token.json
+secrets.json
+service_account.json
+00_original_uploads/

@@ -1,0 +1,3 @@
+dataset,total_windows,empty_windows,final_nodes,final_edges,total_interactions,maximum_new_nodes,maximum_new_edges,windows_with_new_nodes,new_edges_between_existing_nodes,fraction_old_old_edges,mean_affected_fraction,mean_affected_fraction_after_first
+French High School,101,60,327,5818,188508,281,821,11,4854,0.8343073221038158,0.1444046639179366,0.13584871055711595
+Email-Eu-core-temporal,115,37,986,16064,332334,581,1501,72,13865,0.8631100597609562,0.17644741786192944,0.16922327240457793

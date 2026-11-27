@@ -1,0 +1,41 @@
+{
+    "seeds": [
+        4000,
+        4001,
+        4002
+    ],
+    "timing_repeats": 2,
+    "configurations": {
+        "refined_adaptive": [
+            null,
+            true
+        ],
+        "hybrid_5": [
+            5,
+            false
+        ],
+        "hybrid_10": [
+            10,
+            false
+        ],
+        "hybrid_20": [
+            20,
+            false
+        ],
+        "refined_hybrid_5": [
+            5,
+            true
+        ],
+        "refined_hybrid_10": [
+            10,
+            true
+        ],
+        "refined_hybrid_20": [
+            20,
+            true
+        ]
+    },
+    "reset_unit": "topology_changing_transition",
+    "baseline_results_reused": true,
+    "algorithm_sha256": "d2b8db245c95f48c389213cff7113348e81acfdef4b698e1085c7b4d880f4ff9"
+}

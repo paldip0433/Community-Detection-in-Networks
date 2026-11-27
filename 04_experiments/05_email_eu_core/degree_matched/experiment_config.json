@@ -1,0 +1,27 @@
+{
+    "dataset": "Email-Eu-core",
+    "matching": "exact_degree",
+    "minimum_participation_gap": 0.1,
+    "available_pairs": 320,
+    "requested_batch_sizes": [
+        1,
+        5,
+        10,
+        25,
+        50,
+        100
+    ],
+    "actual_batch_sizes": [
+        1,
+        5,
+        10,
+        25,
+        50,
+        100
+    ],
+    "realizations": 10,
+    "timing_repeats": 2,
+    "isolated_arrivals_excluded": true,
+    "matching_seed": 42,
+    "algorithm_sha256": "d2b8db245c95f48c389213cff7113348e81acfdef4b698e1085c7b4d880f4ff9"
+}

@@ -1,0 +1,238 @@
+def modularity(G, partition, weight='weight'):
+    m = G.size(weight=weight)
+    if m <= 0:
+        return 0.0
+    degree = dict(G.degree(weight=weight))
+    tot = defaultdict(float)
+    internal = defaultdict(float)
+    for v, c in partition.items():
+        tot[c] += degree[v]
+    for u, v, data in G.edges(data=True):
+        if partition[u] == partition[v]:
+            internal[partition[u]] += data.get(weight, 1.0)
+    return sum(internal[c] / m - (tot[c] / (2*m))**2 for c in tot)
+
+def relabel(partition):
+    mapping = {}
+    out = {}
+    for node, c in partition.items():
+        if c not in mapping:
+            mapping[c] = len(mapping)
+        out[node] = mapping[c]
+    return out
+
+def aggregate_graph(G, partition, weight='weight'):
+    
+    H = nx.Graph()
+    comms = set(partition.values())
+    H.add_nodes_from(comms)
+    for u, v, data in G.edges(data=True):
+        a, b = partition[u], partition[v]
+        w = data.get(weight, 1.0)
+        if H.has_edge(a, b):
+            H[a][b][weight] += w
+        else:
+            H.add_edge(a, b, **{weight: w})
+    return H
+
+def local_move(G, initial_partition, active_nodes=None, max_passes=100,
+               seed=0, tol=1e-12, weight='weight', work=None):
+    
+    if work is None:
+        work = {}
+    for key in ('node_visits', 'candidate_evaluations', 'neighbor_edge_scans', 'passes'):
+        work.setdefault(key, 0)
+    part = dict(initial_partition)
+    nodes = list(G.nodes())
+    m = G.size(weight=weight)
+    if m <= 0 or not nodes:
+        return part, set(), 0
+    degree = dict(G.degree(weight=weight))
+    
+    # Store weighted adjacency; self-loops are omitted from k_i,C because their
+    # internal-edge contribution is invariant under a community move.
+    
+    adj = {}
+    for u in nodes:
+        adj[u] = []
+        for v, data in G[u].items():
+            work['neighbor_edge_scans'] += 1
+            if u == v:
+                continue
+            adj[u].append((v, data.get(weight, 1.0)))
+    community_degree = defaultdict(float)
+    for u in nodes:
+        community_degree[part[u]] += degree[u]
+    active = set(nodes) if active_nodes is None else set(active_nodes) & set(nodes)
+    moved_nodes = set()
+    passes = 0
+    rng = random.Random(seed)
+    for p in range(max_passes):
+        if not active:
+            break
+        passes += 1
+        work['passes'] += 1
+        order = list(active)
+        rng.shuffle(order)
+        next_active = set()
+        moved_this_pass = False
+        for u in order:
+            work['node_visits'] += 1
+            old = part[u]
+            ku = degree[u]
+            if ku <= 0:
+                continue
+            community_degree[old] -= ku
+            
+            # Weight from u to each neighboring community
+            
+            weights = defaultdict(float)
+            for v, w in adj[u]:
+                weights[part[v]] += w
+            
+            # Candidate set includes old community, so node can stay.
+            
+            candidates = set(weights)
+            candidates.add(old)
+            best = old
+            best_score = weights.get(old, 0.0)/m - ku*community_degree[old]/(2*m*m)
+            for c in candidates:
+                work['candidate_evaluations'] += 1
+                score = weights.get(c, 0.0)/m - ku*community_degree[c]/(2*m*m)
+                if score > best_score + tol:
+                    best, best_score = c, score
+            community_degree[best] += ku
+            if best != old:
+                part[u] = best
+                moved_nodes.add(u)
+                moved_this_pass = True
+                next_active.add(u)
+                for v, _ in adj[u]:
+                    next_active.add(v)
+        if not moved_this_pass:
+            break
+        active = next_active
+    return part, moved_nodes, passes
+
+def louvain(G, initial_partition=None, active_nodes=None, max_levels=20,
+            max_passes=100, seed=0, weight='weight'):
+    
+    if G.number_of_nodes() == 0:
+        return {}, {'levels': 0, 'moved_original': set(), 'active_original': set(), 'passes': 0, 'node_visits': 0, 'candidate_evaluations': 0, 'neighbor_edge_scans': 0, 'level_records': []}
+    current = G.copy()
+    
+    # Current graph node -> set of original nodes represented by it
+    
+    members = {u: {u} for u in current.nodes()}
+    if initial_partition is None:
+        part0 = {u: i for i, u in enumerate(current.nodes())}
+    else:
+        part0 = dict(initial_partition)
+        next_label = max(part0.values(), default=-1) + 1
+        for u in current.nodes():
+            if u not in part0:
+                part0[u] = next_label
+                next_label += 1
+    active0 = set(current.nodes()) if active_nodes is None else set(active_nodes)
+    part_at_level = part0
+    total_moved_original = set()
+    total_active_original = set()
+    total_passes = 0
+    total_node_visits = 0
+    total_candidate_evaluations = 0
+    total_neighbor_edge_scans = 0
+    level_records = []
+    previous_q = -float('inf')
+    levels_done = 0
+    for level in range(max_levels):
+        levels_done += 1
+        active = active0 if level == 0 else set(current.nodes()) if active0 is None else set(active0)
+        
+        # For later levels, active0 is translated below after aggregation.
+        
+        level_work = {}
+        part_at_level, moved, passes = local_move(
+            current, part_at_level, active_nodes=active,
+            max_passes=max_passes, seed=seed + level, weight=weight,
+            work=level_work)
+        total_passes += passes
+        total_node_visits += level_work['node_visits']
+        total_candidate_evaluations += level_work['candidate_evaluations']
+        total_neighbor_edge_scans += level_work['neighbor_edge_scans']
+        level_records.append({
+            'level': level,
+            'graph_nodes': current.number_of_nodes(),
+            'graph_edges': current.number_of_edges(),
+            'active_nodes_this_level': len(active),
+            'represented_original_nodes_activated': sum(
+                len(members.get(u, {u})) for u in active if u in members
+            ),
+            'node_visits': level_work['node_visits'],
+            'candidate_evaluations': level_work['candidate_evaluations'],
+            'neighbor_edge_scans': level_work['neighbor_edge_scans'],
+            'passes': passes
+        })
+        for u in moved:
+            total_moved_original.update(members.get(u, {u}))
+        for u in active:
+            total_active_original.update(members.get(u, {u}))
+        q = modularity(current, part_at_level, weight=weight)
+        
+        # A level with no contraction cannot improve further through aggregation.
+        
+        k = len(set(part_at_level.values()))
+        if k == current.number_of_nodes() or k <= 1 or q <= previous_q + 1e-12:
+            break
+        previous_q = q
+        new_graph = aggregate_graph(current, part_at_level, weight=weight)
+        new_members = {c: set() for c in set(part_at_level.values())}
+        for u, c in part_at_level.items():
+            new_members[c].update(members[u])
+        
+        # Determine which contracted nodes are in/adjacent to the affected region.
+        # On level 0 this maps new-node neighbourhoods to supernodes; later levels
+        # preserve and expand this active region.
+        
+        if active_nodes is None:
+            active0 = set(new_graph.nodes())
+        else:
+            active_super = {part_at_level[u] for u in active if u in part_at_level}
+            for c in list(active_super):
+                active_super.update(new_graph.neighbors(c))
+            active0 = active_super
+        current, members = new_graph, new_members
+        
+        # At a new level, each supernode starts as its own community; that is the
+        # standard Louvain aggregation phase.
+        
+        part_at_level = {u: u for u in current.nodes()}
+    
+    # Translate final partition from current graph level back to original nodes.
+    
+    final = {}
+    for u, c in part_at_level.items():
+        for original in members[u]:
+            final[original] = c
+    return relabel(final), {
+        'levels': levels_done,
+        'moved_original': total_moved_original,
+        'active_original': total_active_original,
+        'passes': total_passes,
+        'node_visits': total_node_visits,
+        'candidate_evaluations': total_candidate_evaluations,
+        'neighbor_edge_scans': total_neighbor_edge_scans,
+        'level_records': level_records,
+    }
+
+def matched_change_fraction(part_a, part_b, nodes):
+    
+    la = sorted(set(part_a[u] for u in nodes))
+    lb = sorted(set(part_b[u] for u in nodes))
+    ia = {c:i for i,c in enumerate(la)}
+    ib = {c:i for i,c in enumerate(lb)}
+    contingency = np.zeros((len(la), len(lb)), dtype=np.int64)
+    for u in nodes:
+        contingency[ia[part_a[u]], ib[part_b[u]]] += 1
+    rows, cols = linear_sum_assignment(-contingency)
+    matched = int(contingency[rows, cols].sum())
+    return 1.0 - matched / len(nodes)
